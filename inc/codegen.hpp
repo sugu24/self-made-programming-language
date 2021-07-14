@@ -37,6 +37,7 @@ class CodeGen{
 		~CodeGen();
 		bool doCodeGen(TranslationUnitAST &tunit, std::string name, std::string link_file, bool with_jit);
 		llvm::Module &getModule();
+		bool CORRECT = true;
 
 	private:
 		bool generateTranslationUnit(TranslationUnitAST &tunit, std::string name);

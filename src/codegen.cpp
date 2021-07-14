@@ -605,7 +605,7 @@ llvm::Value *CodeGen::generateFunctionStatement(FunctionStmtAST *func_stmt, llvm
 			llvm::Value *check = Mod->getNamedGlobal(gVar->getName());
 			if(!check){
 				fprintf(stderr, "%d行目 : global で宣言された変数 %s はありません.\n", gVar->getLine(), gVar->getName().c_str());
-				return NULL;
+				CORRECT = false;
 			}
 		}else if(!llvm::isa<NullExprAST>(stmt))
 			v = generateStatement(stmt, func_stmt);

@@ -132,7 +132,7 @@ int main(int argc, char **argv){
 	// get codegen
 	CodeGen *codegen = new CodeGen();
 	if(!codegen->doCodeGen(tunit, opt.getInputFileName(),
-			       	opt.getLinkFileName(), opt.getWithJit())){
+			       	opt.getLinkFileName(), opt.getWithJit()) || !codegen->CORRECT){
 		SAFE_DELETE(parser);
 		SAFE_DELETE(codegen);
 		exit(1);
