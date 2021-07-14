@@ -30,6 +30,7 @@ class Parser{
 			SAFE_DELETE(Tokens);
 		}
 		bool doParse();
+		bool CORRECT = true;
 		TranslationUnitAST &getAST();
 
 	private:

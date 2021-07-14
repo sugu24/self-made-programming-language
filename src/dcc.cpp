@@ -112,48 +112,38 @@ int main(int argc, char **argv){
 		exit(1);
 	}
 	
-	printf("デバック用　ファイルの有無\n");
 	// check
 	if(opt.getInputFileName().length() == 0){
 		fprintf(stderr, "入力ファイル名が指定されていません\n");
 		exit(1);
 	}
-	printf("デバック用　パーサースタート\n");
 	// lex and parse
 	Parser *parser = new Parser(opt.getInputFileName());
-	if(!parser->doParse()){
-		fprintf(stderr, "err at parser or lexer\n");
+	if(!parser->doParse() || !parser->CORRECT){
 		SAFE_DELETE(parser);
 		exit(1);
 	}
-	printf("デバック用　AST取得\n");
 	// get AST
 	TranslationUnitAST &tunit = parser->getAST();
 	if(tunit.empty()){
-		fprintf(stderr, "TranslationUnit is empty");
 		SAFE_DELETE(parser);
 		exit(1);
 	}
 	// get codegen
-	printf("デバック用　codegenスタート\n");
 	CodeGen *codegen = new CodeGen();
 	if(!codegen->doCodeGen(tunit, opt.getInputFileName(),
 			       	opt.getLinkFileName(), opt.getWithJit())){
-		fprintf(stderr, "err at codegen\n");
 		SAFE_DELETE(parser);
 		SAFE_DELETE(codegen);
 		exit(1);
 	}
-	printf("デバック用　終了\n");
 	// get Module 
 	llvm::Module &mod = codegen->getModule();
 	if(mod.empty()){
-		fprintf(stderr, "Module is empty");
 		SAFE_DELETE(parser);
 		SAFE_DELETE(codegen);
 		exit(1);
 	}
-	printf("デバッグ用　モジュール終了\n");
 	llvm::PassManager pm;
 	
 	// mem2regをPassManagerに登録

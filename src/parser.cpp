@@ -81,6 +81,7 @@ bool Parser::visitExternalDeclaration(TranslationUnitAST *tunit){
 	// FunctionDeclaration
 	PrototypeAST *proto = visitFunctionDeclaration();
 	if (!proto){
+		CORRECT = false;
 		fprintf(stderr, "%d行目 : 関数を宣言する際は 関数名(引数,引数,,,){処理} としてください.\n", Tokens->getCurLine());
 		Tokens->getNextFunction();
 		return true;
@@ -119,6 +120,7 @@ PrototypeAST *Parser::visitFunctionDeclaration(){
 			(FunctionTable.find(proto->getName()) != FunctionTable.end() &&
 			 FunctionTable[proto->getName()] != proto->getParamNum())){
 		// エラーメッセージを出してNULLを返す
+		CORRECT = false;
 		fprintf(stderr, "Function : %s is redefined\n", proto->getName().c_str());
 		SAFE_DELETE(proto);
 		return NULL;
@@ -146,6 +148,7 @@ FunctionAST *Parser::visitFunctionDefinition(){
 			PrototypeTable[proto->getName()] != proto->getParamNum() ||
 			FunctionTable.find(proto->getName()) != FunctionTable.end()){
 
+		CORRECT = false;
 		// エラーメッセージを出してNULLを返す
 		fprintf(stderr, "Function : %s is redefined\n", proto->getName().c_str());
 		SAFE_DELETE(proto);
@@ -197,6 +200,7 @@ PrototypeAST *Parser::visitPrototype(){
 	if(Tokens->getCurType() != TOK_SYMBOL || Tokens->getCurString() != "("){
 		if(Tokens->getCurString() == "=")
 			fprintf(stderr, "%d行目 : もしかして繰り返し構文？.\n", Tokens->getCurLine());
+		CORRECT = false;
 		Tokens->applyTokenIndex(bkup);
 		return NULL;
 	}
@@ -275,6 +279,7 @@ FunctionStmtAST *Parser::visitFunctionStatement(PrototypeAST *proto){
 		if(Tokens->getCurString() == "="){
 			Tokens->getBackToken();
 			if(Tokens->getCurType() != TOK_IDENTIFIER){
+				CORRECT = false;
 				fprintf(stderr, "%d行目 :  = の左は変数が必要です\n", 
 						Tokens->getCurLine());
 				Tokens->applyTokenIndex(bkup);
@@ -325,6 +330,7 @@ FunctionStmtAST *Parser::visitFunctionStatement(PrototypeAST *proto){
 						       	Tokens->getCurString() == "{")
 						Tokens->getNextToken();
 					else{
+						CORRECT = false;
 						fprintf(stderr, "%d行目 : %s 条件式の後に { がありません.\n", line, str.c_str());
 						stmt = NULL;
 					}
@@ -338,6 +344,7 @@ FunctionStmtAST *Parser::visitFunctionStatement(PrototypeAST *proto){
 						str = "->";
 					stmt = visitIfEndStatement();
 					if(Tokens->getCurType() == TOK_EOF){
+						CORRECT = false;
 						fprintf(stderr, "%d行目 : %s 条件式の処理の最後に } がありません.\n", line, str.c_str());
 					}
 					break;
@@ -345,6 +352,7 @@ FunctionStmtAST *Parser::visitFunctionStatement(PrototypeAST *proto){
 				else if(popStmt == "for"){
 					stmt = visitForEndStatement();
 					if(Tokens->getCurType() == TOK_EOF){
+						CORRECT = false;
 						fprintf(stderr, "%d行目 : 繰り返し構文の処理の最後に } がありません.\n", line);
 					}
 					break;
@@ -364,11 +372,13 @@ FunctionStmtAST *Parser::visitFunctionStatement(PrototypeAST *proto){
 			if(Tokens->getCurType() == TOK_SYMBOL && Tokens->getCurString() == "{")
 				Tokens->getNextToken();
 			else{
+				CORRECT = false;
 				fprintf(stderr, "%d行目 : ? 条件式 の後に { がありません.\n", Tokens->getCurLine());
 				stmt = NULL;
 			}
 		
 		}else if(Tokens->getCurType() == TOK_ELSE_IF){
+			CORRECT = false;
 			if(lastStmt.at(lastStmt.size()-1) == "if" || lastStmt.at(lastStmt.size()-1) == "else if")
 				fprintf(stderr, "%d行目 : 上の条件式が } で閉じられていません.\n", line);
 			else
@@ -382,6 +392,7 @@ FunctionStmtAST *Parser::visitFunctionStatement(PrototypeAST *proto){
 				Tokens->getNextToken();
 		}
 		else if(Tokens->getCurType() == TOK_ELSE){
+			CORRECT = false;
 			if(lastStmt.at(lastStmt.size()-1) == "if" || lastStmt.at(lastStmt.size()-1) == "else if")
 				fprintf(stderr, "%d行目 : 上の条件式が } で閉じられていません.\n", line);
 			else
@@ -402,6 +413,7 @@ FunctionStmtAST *Parser::visitFunctionStatement(PrototypeAST *proto){
 			if(Tokens->getCurType() == TOK_SYMBOL && Tokens->getCurString() == "{")
 				Tokens->getNextToken();
 			else{
+				CORRECT = false;
 				fprintf(stderr, "%d行目 : 変数 = 式..式 の後に { がありません.\n", line);
 			}
 
@@ -414,7 +426,6 @@ FunctionStmtAST *Parser::visitFunctionStatement(PrototypeAST *proto){
 		}else{
 			stmt = visitStatement(func_stmt);
 			if(!stmt){
-				//fprintf(stderr, "%d行目 : 処理できませんでした.\n", line);
 				Tokens->getNextStatement();
 				Tokens->getNextToken();
 			}
@@ -425,6 +436,7 @@ FunctionStmtAST *Parser::visitFunctionStatement(PrototypeAST *proto){
 
 	if(Tokens->getCurString() == "}" || Tokens->getCurType() == TOK_EOF || Tokens->getCurString() == "]]"){
 		if(lastStmt.size() != 0){
+			CORRECT = false;
 			fprintf(stderr, "関数 %s : for ,if または 関数を閉じる } が足りません.\n", proto->getName().c_str());
 		}
 		if(!last || !llvm::isa<ReturnStmtAST>(last))
@@ -461,6 +473,7 @@ BaseAST *Parser::visitAssignmentExpression(FunctionStmtAST *func_stmt){
 				else{
 					SAFE_DELETE(lhs);
 					Tokens->getBackToken();
+					CORRECT = false;
 					fprintf(stderr, "%d行目 : = の右辺を確認してください.(上のエラーを修正することで直る場合があります)\n", Tokens->getCurLine());
 					Tokens->getNextStatement();
 					return NULL;
@@ -476,6 +489,7 @@ BaseAST *Parser::visitAssignmentExpression(FunctionStmtAST *func_stmt){
 					return new BinaryExprAST("=", lhs, rhs, Tokens->getToken().getLine());
 				}else{
 					SAFE_DELETE(lhs);
+					CORRECT = false;
 					fprintf(stderr, "%d行目 : += の右辺を確認してください.(上のエラ>ーを修正することで直る場合があります)\n", Tokens->getCurLine());
 					Tokens->getNextStatement();
 					return NULL;
@@ -491,6 +505,7 @@ BaseAST *Parser::visitAssignmentExpression(FunctionStmtAST *func_stmt){
 					return new BinaryExprAST("=", lhs, rhs, Tokens->getToken().getLine());
 				}else{
 					SAFE_DELETE(lhs);
+					CORRECT = false;
 					fprintf(stderr, "%d行目 : -= の右辺を確認してください.(上のエラ>ーを修正することで直る場合があります)\n", Tokens->getCurLine());
 					Tokens->getNextStatement();
 					return NULL;
@@ -506,6 +521,7 @@ BaseAST *Parser::visitAssignmentExpression(FunctionStmtAST *func_stmt){
 					return new BinaryExprAST("=", lhs, rhs, Tokens->getToken().getLine());
 				}else{
 					SAFE_DELETE(lhs);
+					CORRECT = false;
 					fprintf(stderr, "%d行目 : *= の右辺を確認してください.(上のエラ>ーを修正することで直る場合があります)\n", Tokens->getCurLine());
 					Tokens->getNextStatement();
 					return NULL;
@@ -521,6 +537,7 @@ BaseAST *Parser::visitAssignmentExpression(FunctionStmtAST *func_stmt){
 					return new BinaryExprAST("=", lhs, rhs, Tokens->getToken().getLine());
 				}else{
 					SAFE_DELETE(lhs);
+					CORRECT = false;
 					fprintf(stderr, "%d行目 : /= の右辺を確認してください.(上のエラ>ーを修正することで直る場合があります)\n", Tokens->getCurLine());
 					Tokens->getNextStatement();
 					return NULL;
@@ -536,6 +553,7 @@ BaseAST *Parser::visitAssignmentExpression(FunctionStmtAST *func_stmt){
 					return new BinaryExprAST("=", lhs, rhs, Tokens->getToken().getLine());
 				}else{
 					SAFE_DELETE(lhs);
+					CORRECT = false;
 					fprintf(stderr, "%d行目 : %%= の右辺を確認してください.(上のエラ>ーを修正することで直る場合があります)\n", Tokens->getCurLine());
 					Tokens->getNextStatement();
 					return NULL;
@@ -551,6 +569,7 @@ BaseAST *Parser::visitAssignmentExpression(FunctionStmtAST *func_stmt){
 					return new BinaryExprAST("=", lhs, rhs, Tokens->getToken().getLine());
 				}else{
 					SAFE_DELETE(lhs);
+					CORRECT = false;
 					fprintf(stderr, "%d行目 : //= の右辺を確認してください.(上のエラ>ーを修正することで直る場合があります)\n", Tokens->getCurLine());
 					Tokens->getNextStatement();
 					return NULL;
@@ -562,6 +581,7 @@ BaseAST *Parser::visitAssignmentExpression(FunctionStmtAST *func_stmt){
 					Tokens->getBackToken();
 				}else{
 					SAFE_DELETE(lhs);
+					CORRECT = false;
 					fprintf(stderr, "%d行目 : 式は変数に代入されていません.\n", Tokens->getCurLine());
 					Tokens->getNextStatement();
 					return NULL;
@@ -629,6 +649,7 @@ BaseAST *Parser::visitPrimaryExpression(FunctionStmtAST *func_stmt){
 		if(Tokens->getCurType() == TOK_SYMBOL && Tokens->getCurString() == ")")
 			Tokens->getNextToken();
 		else{
+			CORRECT = false;
 			fprintf(stderr, "%d行目 : ( を使った式が ) で閉じられていません.\n", line);
 			Tokens->getNextStatement();
 			return NULL;
@@ -637,6 +658,7 @@ BaseAST *Parser::visitPrimaryExpression(FunctionStmtAST *func_stmt){
 	}
 
 	if(Tokens->getCurType() == TOK_SYMBOL){
+		CORRECT = false;
 		fprintf(stderr, "%d行目 : %sが予期せぬところに書かれています.\n", Tokens->getCurLine(), Tokens->getCurString().c_str());
 		Tokens->getNextStatement();
 	}
@@ -672,9 +694,11 @@ BaseAST *Parser::visitPostfixExpression(FunctionStmtAST *func_stmt){
 			int bfr = Tokens->getCurIndex();
 			if(Tokens->getNextToken() && Tokens->getCurString() == "(" && Tokens->getNextToken() && Tokens->getCurString() == ")"){
 				Tokens->applyTokenIndex(bfr);
+				CORRECT = false;
 				fprintf(stderr, "%d行目 : 関数 %s は宣言されていません.\n", line, Tokens->getCurString().c_str());
 			}else{
 				Tokens->applyTokenIndex(bfr);
+				CORRECT = false;
 				fprintf(stderr, "%d行目 : 変数 %s は宣言されていません.\n", line, Tokens->getCurString().c_str());
 			}
 			Tokens->getNextStatement();
@@ -706,6 +730,7 @@ BaseAST *Parser::visitPostfixExpression(FunctionStmtAST *func_stmt){
 					Tokens->getNextToken();
 				}
 				else if(!(assign_expr = visitAdditiveExpression(NULL, func_stmt))){
+					CORRECT = false;
 					fprintf(stderr, "%d行目 : printの引数を確認してください\n", line);
 					Tokens->getNextStatement();
 					continue;
@@ -735,6 +760,7 @@ BaseAST *Parser::visitPostfixExpression(FunctionStmtAST *func_stmt){
 							Tokens->getNextToken();
 						}
 						if(!(Tokens->getCurType() == TOK_SYMBOL && Tokens->getCurString() == "\\")){
+							CORRECT = false;
 							fprintf(stderr, "%d行目 : printの引数を確認してください\n", line);
 							return NULL;
 						}
@@ -827,6 +853,7 @@ BaseAST *Parser::visitPostfixExpression(FunctionStmtAST *func_stmt){
 			for(int i=0;i<args.size();i++){
 				SAFE_DELETE(args[i]);
 			}
+			CORRECT = false;
 			fprintf(stderr, "%d行目 : 関数 %s の引数の数が合いません.\n", line, Callee.c_str());
 			Tokens->getNextStatement();
 			return NULL;
@@ -840,6 +867,7 @@ BaseAST *Parser::visitPostfixExpression(FunctionStmtAST *func_stmt){
 			for(int i=0;i<args.size();i++){
 				SAFE_DELETE(args[i]);
 			}
+			CORRECT = false;
 			fprintf(stderr, "%d行目 : 関数 %s の呼び出しに失敗しました.\n", line, Callee.c_str());
 			Tokens->getNextStatement();
 			return NULL;
@@ -874,6 +902,7 @@ BaseAST *Parser::visitAdditiveExpression(BaseAST *lhs, FunctionStmtAST *func_stm
 			return visitAdditiveExpression(
 					new BinaryExprAST("+", lhs, rhs, line), func_stmt);
 		}else{
+			CORRECT = false;
 			fprintf(stderr, "%d行目 : 式を確認してください.\n", Tokens->getCurLine());
 			SAFE_DELETE(lhs);
 			Tokens->getNextStatement();
@@ -887,6 +916,7 @@ BaseAST *Parser::visitAdditiveExpression(BaseAST *lhs, FunctionStmtAST *func_stm
 		if(rhs){
 			return visitAdditiveExpression(new BinaryExprAST("-", lhs, rhs, line),func_stmt);
 		}else{
+			CORRECT = false;
 			fprintf(stderr, "%d行目 : 式を確認してください.\n", Tokens->getCurLine());
 			SAFE_DELETE(lhs);
 			Tokens->getNextStatement();
@@ -913,6 +943,7 @@ BaseAST *Parser::visitExpressionStatement(FunctionStmtAST *func_stmt){
 			return assign_expr;
 		}
 		else{
+			CORRECT = false;
 			Tokens->getBackToken();
 			fprintf(stderr, "%d行目 : 最後に ; がないか、; の位置が不適切です.\n", Tokens->getCurLine());
 			Tokens->getNextToken();
@@ -975,6 +1006,7 @@ BaseAST *Parser::visitGlobalStatement(FunctionStmtAST *func_stmt){
 	if(Tokens->getCurType() == TOK_IDENTIFIER)
 		Name = Tokens->getCurString();
 	else{
+		CORRECT = false;
 		fprintf(stderr, "global の後は変数名である必要があります.\n");
 		Tokens->applyTokenIndex(bkup);
 		return NULL;
@@ -983,6 +1015,7 @@ BaseAST *Parser::visitGlobalStatement(FunctionStmtAST *func_stmt){
 	if(std::find(VariableTable.begin(), VariableTable.end(), Name) == VariableTable.end())
 		VariableTable.push_back(Name);
 	else{
+		CORRECT = false;
 		fprintf(stderr, "global の後の変数が関数内の変数と被っています.\n");
 		Tokens->applyTokenIndex(bkup);
 		return NULL;
@@ -991,6 +1024,7 @@ BaseAST *Parser::visitGlobalStatement(FunctionStmtAST *func_stmt){
 	if(Tokens->getCurString() == ";")
 		Tokens->getNextToken();
 	else{
+		CORRECT = false;
 		fprintf(stderr, "global 変数名 の後は ; である必要があります.\n");
 		Tokens->applyTokenIndex(bkup);
 		return NULL;
@@ -1067,6 +1101,7 @@ BaseAST *Parser::visitMultiplicativeExpression(BaseAST *lhs, FunctionStmtAST *fu
  */
 BaseAST *Parser::visitReturnStatement(FunctionStmtAST *func_stmt){
 	int bkup = Tokens->getCurIndex();
+	int line = Tokens->getCurLine();
 	BaseAST *expr;
 
 	if(Tokens->getCurType() == TOK_RETURN){
@@ -1081,6 +1116,8 @@ BaseAST *Parser::visitReturnStatement(FunctionStmtAST *func_stmt){
 			Tokens->getNextToken();
 			return new ReturnStmtAST(expr);
 		}else{
+			CORRECT = false;
+			fprintf(stderr, "%d行目 : ; がありません.\n", line);
 			Tokens->applyTokenIndex(bkup);
 			return NULL;
 		}
@@ -1121,6 +1158,7 @@ BaseAST *Parser::visitIfStatement(FunctionStmtAST *func_stmt){
 				if_expr->addDepth(depth);
 			}
 			else{
+				CORRECT = false;
 				fprintf(stderr, "%d行目 : 条件式の結合が %s でされています.\n", line, Tokens->getCurString().c_str());
 				Tokens->getNextStatement();
 				return NULL;
@@ -1134,6 +1172,7 @@ BaseAST *Parser::visitIfStatement(FunctionStmtAST *func_stmt){
 
 		lhs = visitAdditiveExpression(NULL, func_stmt);
 		if(!lhs || llvm::isa<NullExprAST>(lhs)){
+			CORRECT = false;
 			fprintf(stderr, "%d行目 : 条件式を確認してください.\n", line);
 			Tokens->getNextToken();
 			return NULL;
@@ -1149,6 +1188,7 @@ BaseAST *Parser::visitIfStatement(FunctionStmtAST *func_stmt){
 			op = Tokens->getCurString();
 			Tokens->getNextToken();
 		}else{
+			CORRECT = false;
 			fprintf(stderr, "%d行目 : 条件式内で %s を条件としています.\n", line, Tokens->getCurString().c_str());
 			Tokens->getNextStatement();
 			return NULL;
@@ -1157,6 +1197,7 @@ BaseAST *Parser::visitIfStatement(FunctionStmtAST *func_stmt){
 		// 条件式の右辺を取得
 		rhs = visitAdditiveExpression(NULL, func_stmt);
 		if(!rhs || llvm::isa<NullExprAST>(rhs)){
+			CORRECT = false;
 			fprintf(stderr, "%d行目 : 条件式内を確認してください.\n", line);
 			Tokens->getNextStatement();
 			return NULL;
@@ -1181,6 +1222,7 @@ BaseAST *Parser::visitIfStatement(FunctionStmtAST *func_stmt){
 	}
 	
 	if(depth != 0){
+		CORRECT = false;
 		fprintf(stderr, "%d行目 : 真偽値の () を確認してください.\n", line);
 		SAFE_DELETE(if_expr);
 		return NULL;
@@ -1226,6 +1268,7 @@ ForStatementAST *Parser::visitForStatement(FunctionStmtAST *func_stmt){
 			VariableTable.push_back(var_decl->getName());
 		}
 	}else{
+		CORRECT = false;
 		fprintf(stderr, "%d行目 : 繰り返し構文の = の左辺値は変数名でなければいけません\n", 
 				Tokens->getCurLine());
 		Tokens->getNextStatement();
@@ -1236,6 +1279,7 @@ ForStatementAST *Parser::visitForStatement(FunctionStmtAST *func_stmt){
 	if(Tokens->getCurType() == TOK_SYMBOL && Tokens->getCurString() == "=")
 		Tokens->getNextToken();
 	else{
+		CORRECT = false;
 		fprintf(stderr, "%d行目 : 繰り返し構文の変数の次は = でなければいけません\n",
 				                                Tokens->getCurLine());
 		Tokens->getNextStatement();
@@ -1246,6 +1290,7 @@ ForStatementAST *Parser::visitForStatement(FunctionStmtAST *func_stmt){
 	// 繰り返しの初めの値を取得
 	start_expr = visitAdditiveExpression(NULL, func_stmt);
 	if(!start_expr || llvm::isa<NullExprAST>(start_expr)){
+		CORRECT = false;
 		fprintf(stderr, "%d行目 : 繰り返し構文の = の右辺値は 式..式 でなければいけません\n",
 				                                Tokens->getCurLine());
 		bin_expr = new BinaryExprAST("=", val, new NumberAST(0), Tokens->getCurLine());
@@ -1256,6 +1301,7 @@ ForStatementAST *Parser::visitForStatement(FunctionStmtAST *func_stmt){
 	if(Tokens->getCurType() == TOK_SYMBOL && Tokens->getCurString() == "..")
 		Tokens->getNextToken();
 	else{
+		CORRECT = false;
 		fprintf(stderr, "%d行目 : 繰り返し構文の = の右辺値は 式..式 でなければいけません\n",
 				Tokens->getCurLine());
 		Tokens->getNextStatement();
@@ -1266,8 +1312,10 @@ ForStatementAST *Parser::visitForStatement(FunctionStmtAST *func_stmt){
 	// 繰り返しの終わりの値を取得
 	end_expr = visitAdditiveExpression(NULL, func_stmt);
 	if(!end_expr || llvm::isa<NullExprAST>(end_expr)){
-		if(!end_expr)
+		if(!end_expr){
+			CORRECT = false;
 			fprintf(stderr, "%d行目 : 繰り返し構文の = の右辺値は 式..式 でなければいけません\n", Tokens->getCurLine());
+		}
 		bin_expr = new BinaryExprAST("=", val, start_expr, Tokens->getCurLine());
 		return new ForStatementAST(val, bin_expr, new NumberAST(0));
 	}
@@ -1289,7 +1337,7 @@ BaseAST *Parser::visitForEndStatement(){
  */
 BaseAST *Parser::visitBreakStatement(){
 	int bkup = Tokens->getCurIndex();
-	
+	int line = Tokens->getCurLine();
 	int to = 1;
 	Tokens->getNextToken();
 	if(Tokens->getCurType() == TOK_SYMBOL && Tokens->getCurString() == "("){
@@ -1297,22 +1345,25 @@ BaseAST *Parser::visitBreakStatement(){
 		if(Tokens->getCurType() == TOK_DIGIT){
 			to = std::stoi(Tokens->getCurString());
 			if(to <= 0){
-				fprintf(stderr, "%d行目の<-( の後の数字は1以上です\n", Tokens->getCurLine());
-				Tokens->applyTokenIndex(bkup);
+				CORRECT = false;
+				fprintf(stderr, "%d行目 : break( の後の数字は1以上です\n", line);
+				Tokens->getNextStatement();
 				return NULL;
 			}
 			Tokens->getNextToken();
 		}
 		else{
-			fprintf(stderr, "%d行目の<-(の次は数字でなければいけません", Tokens->getCurLine());
-			Tokens->applyTokenIndex(bkup);
+			CORRECT = false;
+			fprintf(stderr, "%d行目 : break( の次は数字でなければいけません", Tokens->getCurLine());
+			Tokens->getNextStatement();
 			return NULL;
 		}
 		if(Tokens->getCurType() == TOK_SYMBOL && Tokens->getCurString() == ")")
 			Tokens->getNextToken();
 		else{
-			fprintf(stderr, "%d行目の<-(数字　の次は)でなければいけません", Tokens->getCurLine());
-			Tokens->applyTokenIndex(bkup);
+			CORRECT = false;
+			fprintf(stderr, "%d行目 : break(数字　の次は ) でなければいけません", Tokens->getCurLine());
+			Tokens->getNextStatement();
 			return NULL;
 		}
 	}
@@ -1320,8 +1371,9 @@ BaseAST *Parser::visitBreakStatement(){
 	if(Tokens->getCurString() == ";")
 		Tokens->getNextToken();
 	else{
-		fprintf(stderr, "break() の次は ; が来る必要があります.\n");
-		Tokens->applyTokenIndex(bkup);
+		CORRECT = false;
+		fprintf(stderr, "%d行目 : break() の次は ; が来る必要があります.\n", line);
+		Tokens->getNextStatement();
 		return NULL;
 	}
 	return new BreakAST(to);
@@ -1333,6 +1385,7 @@ BaseAST *Parser::visitBreakStatement(){
  */
 BaseAST *Parser::visitContinueStatement(){
 	int bkup = Tokens->getCurIndex();
+	int line = Tokens->getCurLine();
 
 	int to = 1;
 	Tokens->getNextToken();
@@ -1341,22 +1394,24 @@ BaseAST *Parser::visitContinueStatement(){
 		if(Tokens->getCurType() == TOK_DIGIT){
 			to = std::stoi(Tokens->getCurString());
 			if(to <= 0){
-				fprintf(stderr, "%d行目の^-( の後の数字は1以上です\n", Tokens->getCurLine());
-				Tokens->applyTokenIndex(bkup);
+				CORRECT = false;
+				fprintf(stderr, "%d行目 : continue( の後の数字は1以上です\n", line);
+				Tokens->getNextStatement();
 				return NULL;
 			}
 			Tokens->getNextToken();
 		}
 		else{
-			fprintf(stderr, "%d行目の^-(の次は数字でなければいけません", Tokens->getCurLine());
-			Tokens->applyTokenIndex(bkup);
+			CORRECT = false;
+			fprintf(stderr, "%d行目 : continue( の次は数字でなければいけません", line);
+			Tokens->getNextStatement();
 			return NULL;
 		}
 		if(Tokens->getCurType() == TOK_SYMBOL && Tokens->getCurString() == ")")
 			Tokens->getNextToken();
 		else{
-			fprintf(stderr, "%d行目の^-(数字　の次は)でなければいけません", Tokens->getCurLine());
-			Tokens->applyTokenIndex(bkup);
+			fprintf(stderr, "%d行目 : continue(数字　の次は ) でなければいけません", line);
+			Tokens->getNextStatement();
 			return NULL;
 		}
 	}
@@ -1364,8 +1419,9 @@ BaseAST *Parser::visitContinueStatement(){
 	if(Tokens->getCurString() == ";")
 		Tokens->getNextToken();
 	else{
-		fprintf(stderr, "continue() の次は ; が来る必要があります.\n");
-		Tokens->applyTokenIndex(bkup);
+		CORRECT = false;
+		fprintf(stderr, "%d行目 : continue() の次は ; が来る必要があります.\n", line);
+		Tokens->getNextStatement();
 		return NULL;
 	}
 	return new ContinueAST(to);
