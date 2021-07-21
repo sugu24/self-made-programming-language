@@ -1,4 +1,3 @@
-elf-made-programming-language
 #### programming language using llvmの説明
 
 * llvmを用いた自作言語を作成しました 
