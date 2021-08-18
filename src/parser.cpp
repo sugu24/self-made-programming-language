@@ -1181,6 +1181,7 @@ BaseAST *Parser::visitIfStatement(FunctionStmtAST *func_stmt){
 		// 比較方法を取得
 		if(Tokens->getCurType() == TOK_SYMBOL && 
 				(Tokens->getCurString() == "==" ||
+				 Tokens->getCurString() == "!=" ||
 				 Tokens->getCurString() == "<"  ||
 				 Tokens->getCurString() == ">"  ||
 				 Tokens->getCurString() == ">=" ||

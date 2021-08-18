@@ -87,7 +87,7 @@ bool OptionParser::parseOption(){
 	std::string ifn = InputFileName;
 	int len = ifn.length();
 	if(OutputFileName.empty() && len > 2 && 
-			ifn[len-3] == '.' && ifn[len-2] == 'd' && ifn[len-1] == 'c'){
+			ifn[len-3] == '.' && ifn[len-2] == 'g' && ifn[len-1] == 'd'){
 		OutputFileName = std::string(ifn.begin(), ifn.end()-3);
 		OutputFileName += ".s";
 	}
