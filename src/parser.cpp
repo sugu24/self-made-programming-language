@@ -396,7 +396,7 @@ FunctionStmtAST *Parser::visitFunctionStatement(PrototypeAST *proto){
 			if(lastStmt.at(lastStmt.size()-1) == "if" || lastStmt.at(lastStmt.size()-1) == "else if")
 				fprintf(stderr, "%d行目 : 上の条件式が } で閉じられていません.\n", line);
 			else
-				fprintf(stderr, "%d行目 : 条件式 ?? の前に ? がありません.\n", line);
+				fprintf(stderr, "%d行目 : 条件式 -> の前に ? がありません.\n", line);
 			
 			stmt = visitIfStatement(func_stmt);
 			

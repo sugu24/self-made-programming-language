@@ -12,7 +12,7 @@ TokenStream *LexicalAnalysis(std::string input_filename){
 	std::string token_str;
 	int line_num = 1;
 	bool iscomment = false;
-
+	
 	ifs.open(input_filename.c_str(), std::ios::in);
 	if (!ifs){
 		fprintf(stderr, "file is not found\n");
@@ -258,7 +258,11 @@ TokenStream *LexicalAnalysis(std::string input_filename){
 		
 		for(int i = 0; i < line_tokens.size(); i++)
 			tokens->pushToken(line_tokens.at(i));
-		
+		if(line_tokens.size() != 0 &&
+				line_tokens.at(line_tokens.size()-1)->getTokenString() != ";" &&
+				line_tokens.at(line_tokens.size()-1)->getTokenString() != "{" &&
+				line_tokens.at(line_tokens.size()-1)->getTokenString() != "}")
+			tokens->pushToken(new Token(";", TOK_SYMBOL, line_num));
 		token_str.clear();
 		line_tokens.clear();
 		line_num++;
@@ -304,23 +308,6 @@ TokenStream *LexicalAnalysis(std::string input_filename){
 			last = true;
 		}
 		buff.push_back(token);
-
-		/**
-		if(iffor && token->getTokenString() == "{"){
-			iffor = false;
-		}
-		else if(!is_main && kakko == 0 && token->getTokenString() == "{"){
-			block = false;
-			is_main = true;
-		}
-		else if(kakko > 0 && token->getTokenString() == "}"){
-			kakko -= 1;
-		}
-		else if(is_main && kakko == 0 && token->getTokenString() == "}"){
-			block = false;
-			is_main = false;
-		}
-		*/
 
 		if(!block || last){
 			int block_index = -1;
