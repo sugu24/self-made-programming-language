@@ -27,11 +27,11 @@ TokenStream *LexicalAnalysis(std::string input_filename){
 		int length = cur_line.length();
 		std::vector<Token*> line_tokens;
 		cur_line += ":";
-
 		while(index < length){
 			next_char = cur_line.at(index++);
 			if(next_char == ':' && index == length)
 				break;
+			if (next_char < 0)continue;
 			next_token = NULL;
 			// コメント読み飛ばし
 			if(iscomment){
@@ -57,7 +57,7 @@ TokenStream *LexicalAnalysis(std::string input_filename){
 				if(next_char == '\"')
 					next_token = new Token(token_str, TOK_STR, line_num);
 				else{
-					printf("文字列を閉じる\"がありません");
+					fprintf(stderr, u8"文字列を閉じる\"がありません");
 					return NULL;
 				}
 			}else if (isalpha(next_char)){
@@ -138,7 +138,7 @@ TokenStream *LexicalAnalysis(std::string input_filename){
 					if(next_char == '\"')
 						next_token = new Token(token_str, TOK_STR, line_num);
 					if(index == length){
-						fprintf(stderr, "There are not \". please check it.");
+						fprintf(stderr, u8"文字列を閉じる\"がありません");
 						SAFE_DELETE(tokens);
 						return NULL;
 					}
@@ -237,7 +237,9 @@ TokenStream *LexicalAnalysis(std::string input_filename){
 						next_token = new Token(token_str,TOK_SYMBOL,line_num);
 				// 解析不可能
 				}else{
-					fprintf(stderr,"%d行目 : %cは予期せぬ文字です.\n", line_num, next_char);
+					fprintf(stderr, "%d行目 : 文字 ", line_num);
+					//fprintf(stderr, "%c", next_char);
+					fprintf(stderr, " が処理できません\n");
 					SAFE_DELETE(tokens);
 					return NULL;
 				}
@@ -340,7 +342,7 @@ TokenStream *LexicalAnalysis(std::string input_filename){
 		}
 	}
 	if(tokens->getTokensSize() != 0 && tokens->getToken(tokens->getTokensSize()-1)->getTokenString() != "]]"){
-		fprintf(stdout, "最後に作成した関数の最後に } を挿入します.\n");
+		fprintf(stdout, u8"最後に作成した関数の最後に } を挿入します.\n");
 		tokens->pushToken(new Token("}", TOK_SYMBOL, -1));
 		tokens->pushToken(new Token("]]", TOK_SYMBOL, -1));
 	}

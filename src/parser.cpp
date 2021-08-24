@@ -14,7 +14,7 @@ Parser::Parser(std::string filename){
  */
 bool Parser::doParse(){
 	if(!Tokens){
-		fprintf(stderr, "error at lexer\n");
+		//fprintf(stderr, "error at lexer\n");
 		return false;
 	}else{
 		return visitTranslationUnit();
@@ -733,7 +733,7 @@ BaseAST *Parser::visitPostfixExpression(FunctionStmtAST *func_stmt){
 					CORRECT = false;
 					fprintf(stderr, "%d行目 : printの引数を確認してください\n", line);
 					Tokens->getNextStatement();
-					continue;
+					break;
 				}
 				
 				if(llvm::isa<VariableAST>(assign_expr))
@@ -809,6 +809,12 @@ BaseAST *Parser::visitPostfixExpression(FunctionStmtAST *func_stmt){
 					Tokens->getNextToken();
 					if(Tokens->getCurString() == ")")
 						args.push_back(new NewLineAST());
+					else if(Tokens->getCurString() == ";" || Tokens->getCurString() == "}" || Tokens->getCurString() == "{"){
+						CORRECT = false;
+						fprintf(stderr, "%d行目 : printがカッコで閉じられていません\n", line);
+						Tokens->getNextStatement();
+						return NULL;
+					}
 				}
 			}
 			if(args.size() == 0)
