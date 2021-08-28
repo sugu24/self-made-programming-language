@@ -238,7 +238,7 @@ TokenStream *LexicalAnalysis(std::string input_filename){
 				// 解析不可能
 				}else{
 					fprintf(stderr, "%d行目 : 文字 ", line_num);
-					//fprintf(stderr, "%c", next_char);
+					fprintf(stderr, "%c", next_char);
 					fprintf(stderr, " が処理できません\n");
 					SAFE_DELETE(tokens);
 					return NULL;
@@ -342,17 +342,17 @@ TokenStream *LexicalAnalysis(std::string input_filename){
 		}
 	}
 	if(tokens->getTokensSize() != 0 && tokens->getToken(tokens->getTokensSize()-1)->getTokenString() != "]]"){
-		fprintf(stdout, u8"最後に作成した関数の最後に } を挿入します.\n");
+		fprintf(stdout, "最後に作成した関数の最後に } を挿入します.\n");
 		tokens->pushToken(new Token("}", TOK_SYMBOL, -1));
 		tokens->pushToken(new Token("]]", TOK_SYMBOL, -1));
 	}
 	tokens->pushToken(new Token("main", TOK_IDENTIFIER, -1));
 	tokens->pushToken(new Token("(", TOK_SYMBOL, -1));
 	tokens->pushToken(new Token(")", TOK_SYMBOL, -1));
-	tokens->pushToken(new Token("{", TOK_SYMBOL, -1));
+	tokens->pushToken(new Token("{{", TOK_SYMBOL, -1));
 	for(int i = 0; i < mains.size(); i++)
 		tokens->pushToken(mains.at(i));
-	tokens->pushToken(new Token("}", TOK_SYMBOL, -1));
+	tokens->pushToken(new Token("}}", TOK_SYMBOL, -1));
 	
 	//tokens->printTokens();
 	//return NULL;

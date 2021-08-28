@@ -88,7 +88,7 @@ bool Parser::visitExternalDeclaration(TranslationUnitAST *tunit){
 	}
 
 	tunit->addPrototype(proto);
-	if(Tokens->getCurString() == "{"){
+	if(Tokens->getCurString() == "{" || Tokens->getCurString() == "{{"){
 		Tokens->applyTokenIndex(bkup);
 		// FunctionDefinition
 		FunctionAST *func_def = visitFunctionDefinition();
@@ -111,6 +111,7 @@ bool Parser::visitExternalDeclaration(TranslationUnitAST *tunit){
  */
 PrototypeAST *Parser::visitFunctionDeclaration(){
 	int bkup = Tokens->getCurIndex();
+	int line = Tokens->getCurLine();
 	PrototypeAST *proto = visitPrototype();
 	if (!proto)
 		return NULL;
@@ -121,7 +122,7 @@ PrototypeAST *Parser::visitFunctionDeclaration(){
 			 FunctionTable[proto->getName()] != proto->getParamNum())){
 		// エラーメッセージを出してNULLを返す
 		CORRECT = false;
-		fprintf(stderr, "Function : %s is redefined\n", proto->getName().c_str());
+		fprintf(stderr, "%d行目 : 関数 %s はすでに作成されています\n",  line, proto->getName().c_str());
 		SAFE_DELETE(proto);
 		return NULL;
 	}
@@ -138,6 +139,7 @@ PrototypeAST *Parser::visitFunctionDeclaration(){
  */
 FunctionAST *Parser::visitFunctionDefinition(){
 	int bkup = Tokens->getCurIndex();
+	int line = Tokens->getCurLine();
 	PrototypeAST *proto = visitPrototype();
 	
 	if(!proto){
@@ -150,7 +152,7 @@ FunctionAST *Parser::visitFunctionDefinition(){
 
 		CORRECT = false;
 		// エラーメッセージを出してNULLを返す
-		fprintf(stderr, "Function : %s is redefined\n", proto->getName().c_str());
+		fprintf(stderr, "%d行目 : 関数 %s はすでに作成されています\n",  line, proto->getName().c_str());
 		SAFE_DELETE(proto);
 		return NULL;
 	}
@@ -246,7 +248,7 @@ PrototypeAST *Parser::visitPrototype(){
  */
 FunctionStmtAST *Parser::visitFunctionStatement(PrototypeAST *proto){
 	int bkup = Tokens->getCurIndex();
-	if(Tokens->getCurString() == "{")
+	if(Tokens->getCurString() == "{" || Tokens->getCurString() == "{{")
 		Tokens->getNextToken();
 	else
 		return NULL;
@@ -266,8 +268,9 @@ FunctionStmtAST *Parser::visitFunctionStatement(PrototypeAST *proto){
 	BaseAST *stmt = NULL;
 	BaseAST *last = NULL;
 	// {,}を使うfor ifを格納
-	std::vector<std::string> lastStmt;
+	std::vector<std::tuple<std::string, int>> lastStmt;
 	std::string popStmt;
+	int popLine;
 	while(true){
 		last = stmt;
 
@@ -305,47 +308,38 @@ FunctionStmtAST *Parser::visitFunctionStatement(PrototypeAST *proto){
 			// "}"を処理していく
 			while(Tokens->getCurString() == "}" && lastStmt.size() > 0){
 				// if for どちらの}か取得
-				popStmt = lastStmt.at(lastStmt.size()-1);
+				popStmt = std::get<0>(lastStmt.at(lastStmt.size()-1));
+				popLine = std::get<1>(lastStmt.at(lastStmt.size()-1));
 				lastStmt.pop_back();
 				// }の次のトークンに設定
 				Tokens->getNextToken();
 				
 				line = Tokens->getCurLine();
-				std::string str;
-				if(Tokens->getCurType() == TOK_ELSE_IF)
-					str == "??";
-				else
-					str == "->";
 				
 				// elseが来た時に前にifが来ているか調べる
 				if((Tokens->getCurType() == TOK_ELSE_IF || 
 							Tokens->getCurType() == TOK_ELSE) && 
 						(popStmt == "if" || popStmt == "else if")){
+					std::string catch_token = Tokens->getCurString();
+					int catch_line = Tokens->getCurLine();
+					lastStmt.emplace_back(catch_token, catch_line);
+					stmt = visitIfStatement(func_stmt);
 					// 現在の else if, else をlastStmtへ
 					// IfStatementへ
-					lastStmt.push_back(Tokens->getCurString());
-					stmt = visitIfStatement(func_stmt);
-					
 					if(Tokens->getCurType() == TOK_SYMBOL &&
-						       	Tokens->getCurString() == "{")
+						       	Tokens->getCurString() == "{"){
 						Tokens->getNextToken();
-					else{
+					}else{
 						CORRECT = false;
-						fprintf(stderr, "%d行目 : %s 条件式の後に { がありません.\n", line, str.c_str());
+						fprintf(stderr, "%d行目 : 条件式の後に { がありません.\n", popLine);
 						stmt = NULL;
 					}
 				}
 				else if(popStmt == "if" || popStmt == "else if" || popStmt == "else"){
-					if(popStmt == "if")
-						str = "?";
-					else if(popStmt == "else if")
-						str = "??";
-					else
-						str = "->";
 					stmt = visitIfEndStatement();
 					if(Tokens->getCurType() == TOK_EOF){
 						CORRECT = false;
-						fprintf(stderr, "%d行目 : %s 条件式の処理の最後に } がありません.\n", line, str.c_str());
+						fprintf(stderr, "%d行目 : 条件式の処理の最後に } がありません.\n", popLine);
 					}
 					break;
 				}
@@ -353,7 +347,7 @@ FunctionStmtAST *Parser::visitFunctionStatement(PrototypeAST *proto){
 					stmt = visitForEndStatement();
 					if(Tokens->getCurType() == TOK_EOF){
 						CORRECT = false;
-						fprintf(stderr, "%d行目 : 繰り返し構文の処理の最後に } がありません.\n", line);
+						fprintf(stderr, "%d行目 : 繰り返し構文の処理の最後に } がありません.\n", popLine);
 					}
 					break;
 				}
@@ -362,24 +356,26 @@ FunctionStmtAST *Parser::visitFunctionStatement(PrototypeAST *proto){
 			}
 		
 		}
-		else if(Tokens->getCurString() == "}"){
-			Tokens->getNextToken();
-			stmt = NULL;
+		else if(Tokens->getCurString() == "}" || Tokens->getCurString() == "}}"){
+			break;
 		}else if(Tokens->getCurType() == TOK_IF && Tokens->getCurString() == "if"){
-			lastStmt.push_back(Tokens->getCurString());
-			stmt = visitIfStatement(func_stmt);
 			// {がくるか確認
-			if(Tokens->getCurType() == TOK_SYMBOL && Tokens->getCurString() == "{")
+			std::string catch_token = Tokens->getCurString();
+			int catch_line = Tokens->getCurLine();
+			lastStmt.emplace_back(catch_token, catch_line);
+			stmt = visitIfStatement(func_stmt);
+			if(Tokens->getCurType() == TOK_SYMBOL && Tokens->getCurString() == "{"){
 				Tokens->getNextToken();
-			else{
+			}else{
 				CORRECT = false;
-				fprintf(stderr, "%d行目 : ? 条件式 の後に { がありません.\n", Tokens->getCurLine());
+				fprintf(stderr, "%d行目 : ? 条件式 の後に { がありません.\n", line);
 				stmt = NULL;
+				Tokens->getNextStatement();
 			}
 		
 		}else if(Tokens->getCurType() == TOK_ELSE_IF){
 			CORRECT = false;
-			if(lastStmt.at(lastStmt.size()-1) == "if" || lastStmt.at(lastStmt.size()-1) == "else if")
+			if(std::get<0>(lastStmt.at(lastStmt.size()-1)) == "if" || std::get<0>(lastStmt.at(lastStmt.size()-1)) == "else if")
 				fprintf(stderr, "%d行目 : 上の条件式が } で閉じられていません.\n", line);
 			else
 				fprintf(stderr, "%d行目 : 条件式 ?? の前に ? がありません.\n", line);
@@ -393,7 +389,7 @@ FunctionStmtAST *Parser::visitFunctionStatement(PrototypeAST *proto){
 		}
 		else if(Tokens->getCurType() == TOK_ELSE){
 			CORRECT = false;
-			if(lastStmt.at(lastStmt.size()-1) == "if" || lastStmt.at(lastStmt.size()-1) == "else if")
+			if(std::get<0>(lastStmt.at(lastStmt.size()-1)) == "if" || std::get<0>(lastStmt.at(lastStmt.size()-1)) == "else if")
 				fprintf(stderr, "%d行目 : 上の条件式が } で閉じられていません.\n", line);
 			else
 				fprintf(stderr, "%d行目 : 条件式 -> の前に ? がありません.\n", line);
@@ -406,17 +402,18 @@ FunctionStmtAST *Parser::visitFunctionStatement(PrototypeAST *proto){
 				Tokens->getNextToken();
 		}
 		else if(Tokens->getCurType() == TOK_FOR){
-			lastStmt.push_back(Tokens->getCurString());
+			std::string catch_token = Tokens->getCurString();
+			int catch_line = Tokens->getCurLine();
+			lastStmt.emplace_back(catch_token, catch_line);
 			stmt = visitForStatement(func_stmt);
-			
 			// {がくるか確認
-			if(Tokens->getCurType() == TOK_SYMBOL && Tokens->getCurString() == "{")
+			if(Tokens->getCurType() == TOK_SYMBOL && Tokens->getCurString() == "{"){
 				Tokens->getNextToken();
-			else{
+			}else{
 				CORRECT = false;
 				fprintf(stderr, "%d行目 : 変数 = 式..式 の後に { がありません.\n", line);
+				Tokens->getNextStatement();
 			}
-
 		}else if(Tokens->getCurType() == TOK_BREAK){
 			stmt = visitBreakStatement();
 
@@ -433,12 +430,21 @@ FunctionStmtAST *Parser::visitFunctionStatement(PrototypeAST *proto){
 		if(stmt)
 			func_stmt->addStatement(stmt);
 	}
-
-	if(Tokens->getCurString() == "}" || Tokens->getCurType() == TOK_EOF || Tokens->getCurString() == "]]"){
-		if(lastStmt.size() != 0){
+	
+	if(Tokens->getCurString() == "}" || Tokens->getCurString() == "}}" || Tokens->getCurType() == TOK_EOF || Tokens->getCurString() == "]]"){
+		while(lastStmt.size() != 0){
+			popStmt = std::get<0>(lastStmt.at(lastStmt.size()-1));
+                        popLine = std::get<1>(lastStmt.at(lastStmt.size()-1));
+			lastStmt.pop_back();
 			CORRECT = false;
-			fprintf(stderr, "関数 %s : for ,if または 関数を閉じる } が足りません.\n", proto->getName().c_str());
+			fprintf(stderr, "%d行目 : 処理の最後に } がありません.\n", popLine);
 		}
+		if(Tokens->getCurString() == "}}"){}
+		else if (Tokens->getCurString() != "}"){
+			CORRECT = false;
+			fprintf(stderr, "関数 %s : 関数を閉じる } が足りません.\n", proto->getName().c_str());
+		}
+		
 		if(!last || !llvm::isa<ReturnStmtAST>(last))
 			func_stmt->addStatement(new ReturnStmtAST(new NumberAST(0.0)));
 		Tokens->getNextToken();
@@ -657,13 +663,13 @@ BaseAST *Parser::visitPrimaryExpression(FunctionStmtAST *func_stmt){
 		return lhs;
 	}
 
-	if(Tokens->getCurType() == TOK_SYMBOL){
+	if(Tokens->getCurType() == TOK_SYMBOL && Tokens->getCurString() != ";" && Tokens->getCurString() != "{" && Tokens->getCurString() != "}"){
 		CORRECT = false;
-		fprintf(stderr, "%d行目 : %sが予期せぬところに書かれています.\n", Tokens->getCurLine(), Tokens->getCurString().c_str());
+		fprintf(stderr, "%d行目 : %s が予期せぬところに書かれています.\n", Tokens->getCurLine(), Tokens->getCurString().c_str());
 		Tokens->getNextStatement();
 	}
 	
-	return new NullExprAST();
+	return NULL;
 }
 
 /**
@@ -805,16 +811,16 @@ BaseAST *Parser::visitPostfixExpression(FunctionStmtAST *func_stmt){
 						assign_expr = arg4;
 				}
 				args.push_back(assign_expr);
-				if(Tokens->getCurString() == ","){
+				if (Tokens->getCurString() == ";" || Tokens->getCurString() == "}" || Tokens->getCurString() == "{"){
+					CORRECT = false;
+					fprintf(stderr, "%d行目 : printの末尾にカッコがありません\n", line);
+					Tokens->getNextStatement();
+					return NULL;
+				}
+				else if(Tokens->getCurString() == ","){
 					Tokens->getNextToken();
 					if(Tokens->getCurString() == ")")
 						args.push_back(new NewLineAST());
-					else if(Tokens->getCurString() == ";" || Tokens->getCurString() == "}" || Tokens->getCurString() == "{"){
-						CORRECT = false;
-						fprintf(stderr, "%d行目 : printがカッコで閉じられていません\n", line);
-						Tokens->getNextStatement();
-						return NULL;
-					}
 				}
 			}
 			if(args.size() == 0)
@@ -824,18 +830,24 @@ BaseAST *Parser::visitPostfixExpression(FunctionStmtAST *func_stmt){
 			bool is_first = true;
 			while(is_first || Tokens->getCurType() == TOK_SYMBOL && Tokens->getCurString() == ","){
 				if(!is_first) Tokens->getNextToken();
-
+				
 				// 変数が宣言されていなかったら宣言する
-				if(std::find(VariableTable.begin(), VariableTable.end(),
-						Tokens->getCurString()) == VariableTable.end()){
-					VariableDeclAST *var_decl = visitVariableDeclaration();
-					var_decl->setDeclType(VariableDeclAST::local);
-					func_stmt->addVariableDeclaration(var_decl);
-					VariableTable.push_back(var_decl->getName());
+				if(Tokens->getCurType() == TOK_IDENTIFIER){
+					if(std::find(VariableTable.begin(), VariableTable.end(), Tokens->getCurString()) == VariableTable.end()){
+						VariableDeclAST *var_decl = visitVariableDeclaration();
+						var_decl->setDeclType(VariableDeclAST::local);
+						func_stmt->addVariableDeclaration(var_decl);
+						VariableTable.push_back(var_decl->getName());
+					}
+					args.push_back(new VariableAST(Tokens->getCurString()));
+					Tokens->getNextToken();
 				}
-
-				args.push_back(new VariableAST(Tokens->getCurString()));
-				Tokens->getNextToken();
+				else{
+					CORRECT = false;
+					fprintf(stderr, "%d行目 : input の引数の %s に入力は代入できません.\n", line, Tokens->getCurString().c_str());
+					Tokens->getNextStatement();
+					return NULL;
+				}
 				
 				is_first = false;
 			}
@@ -950,9 +962,8 @@ BaseAST *Parser::visitExpressionStatement(FunctionStmtAST *func_stmt){
 		}
 		else{
 			CORRECT = false;
-			Tokens->getBackToken();
-			fprintf(stderr, "%d行目 : 最後に ; がないか、; の位置が不適切です.\n", Tokens->getCurLine());
-			Tokens->getNextToken();
+			fprintf(stderr, "%d行目 : %s が予期せぬところにあります.\n", Tokens->getCurLine(), Tokens->getCurString().c_str());
+			Tokens->getNextStatement();
 		}
 	}
 	return NULL;
