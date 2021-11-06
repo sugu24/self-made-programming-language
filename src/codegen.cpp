@@ -103,6 +103,49 @@ bool CodeGen::generateTranslationUnit(TranslationUnitAST &tunit, std::string nam
 	);
 	scanFunc->setCallingConv(llvm::CallingConv::C);
 	////////////////////////////////////////////////////////////////////
+	
+	// sprintfのfunction ///////////////////////////////////////////////
+	std::vector<llvm::Type*> sprintFuncArgs;
+	sprintFuncArgs.push_back(llvm::Type::getInt8PtrTy(llvm::getGlobalContext()));
+	sprintFuncArgs.push_back(llvm::Type::getInt8PtrTy(llvm::getGlobalContext()));
+
+	llvm::FunctionType *sprintFuncType = llvm::FunctionType::get(
+			llvm::Type::getDoubleTy(llvm::getGlobalContext()),
+			sprintFuncArgs,
+			true
+	);
+
+	llvm::Function *sprintFunc = llvm::Function::Create(
+			sprintFuncType,
+			llvm::GlobalValue::ExternalLinkage,
+			"sprintf",
+			Mod
+	);
+	sprintFunc->setCallingConv(llvm::CallingConv::C);
+	////////////////////////////////////////////////////////////////////
+
+	// memsetのfunction ////////////////////////////////////////////////
+	std::vector<llvm::Type*> memsetFuncArgs;
+	memsetFuncArgs.push_back(llvm::Type::getInt8PtrTy(llvm::getGlobalContext()));
+	memsetFuncArgs.push_back(llvm::Type::getInt8Ty(llvm::getGlobalContext()));
+	memsetFuncArgs.push_back(llvm::Type::getInt64Ty(llvm::getGlobalContext()));
+	memsetFuncArgs.push_back(llvm::Type::getInt32Ty(llvm::getGlobalContext()));
+	memsetFuncArgs.push_back(llvm::Type::getInt1Ty(llvm::getGlobalContext()));
+	llvm::FunctionType *memsetFuncType = llvm::FunctionType::get(
+			llvm::Type::getDoubleTy(llvm::getGlobalContext()),
+	                memsetFuncArgs,
+			false
+	);
+
+	llvm::Function *memsetFunc = llvm::Function::Create(
+			memsetFuncType,
+			llvm::GlobalValue::ExternalLinkage,
+			"llvm.memset.p0i8.i64",
+			Mod
+	);
+	memsetFunc->setCallingConv(llvm::CallingConv::C);
+	////////////////////////////////////////////////////////////////////
+
 
 	// function declaration
 	for(int i = 0; ; i++){
@@ -197,9 +240,7 @@ llvm::Function *CodeGen::generatePrototype(PrototypeAST *proto, llvm::Module *mo
  */
 llvm::Function *CodeGen::generateFunctionDefinition(FunctionAST *func_ast, llvm::Module *mod){
 	llvm::Function *func = generatePrototype(func_ast->getPrototype(), mod);
-	if(!func){
-		return NULL;
-	}
+	if(!func){ return NULL; }
 	CurFunc = func;
 	//FuncName = func_ast->getPrototype()->getName();
 	llvm::BasicBlock *bblock = llvm::BasicBlock::Create(llvm::getGlobalContext(), "entry", func);
@@ -230,7 +271,6 @@ llvm::Value *CodeGen::generateFunctionStatement(FunctionStmtAST *func_stmt, llvm
 		vdecl = llvm::dyn_cast<VariableDeclAST>(func_stmt->getVariableDecl(i));
 		v = generateVariableDeclaration(vdecl);
 	}
-
 	// ifに対応する変数など
 	BaseAST *stmt;
 	llvm::BasicBlock *bblock;// Blockの生成と判定式が正の時格納
@@ -738,7 +778,9 @@ llvm::Value *CodeGen::generateBinaryExpression(BinaryExprAST *bin_expr, Function
 		// store
 		return Builder->CreateStore(rhs_v, assigned_v);
 	
-	}else if(bin_expr->getOp() == "+"){
+	}
+	
+	if(bin_expr->getOp() == "+"){
 		// add 
 		return Builder->CreateFAdd(lhs_v, rhs_v, "add_tmp");
 		
@@ -788,6 +830,7 @@ llvm::Value *CodeGen::generateCallExpression(CallExprAST *call_expr, FunctionStm
 	llvm::Value *arg_v;
 	llvm::ValueSymbolTable &vs_table = CurFunc->getValueSymbolTable();
 	std::string Str = "";
+	llvm::Value *val;
 	if(call_expr->getCallee() == "print" || call_expr->getCallee() == "input")
 		arg_vec.push_back(generateString(""));
 	
@@ -812,7 +855,6 @@ llvm::Value *CodeGen::generateCallExpression(CallExprAST *call_expr, FunctionStm
 		Str = "%lf";
 		for(int i = 0; i < arg_vec.size()-2; i++)
 			Str += " %lf";
-		// Str += "\n";
 		arg_vec.at(0) = generateString(Str);
 		return Builder->CreateCall(Mod->getFunction("__isoc99_scanf"), arg_vec, "call_temp");
 	}
@@ -852,13 +894,27 @@ llvm::Value *CodeGen::generateCallExpression(CallExprAST *call_expr, FunctionStm
 		}else if(llvm::isa<NewLineAST>(arg)){}
 
 		if(call_expr->getCallee() == "print"){
-			if(llvm::isa<StringAST>(arg))
-				Str += llvm::dyn_cast<StringAST>(arg)->getStringValue();
-			
-			else if(llvm::isa<NewLineAST>(arg))
-				Str += char(0x0A);
-
-			else if(arg_v->getType()->isDoubleTy()){
+			llvm::Value *print_string;
+			std::vector<llvm::Value*> print_vec;
+			std::vector<llvm::Value*> indices;
+			std::vector<llvm::Value*> memset_vec;
+			indices.push_back(llvm::ConstantInt::get(llvm::Type::getInt32Ty(llvm::getGlobalContext()), 0));
+			indices.push_back(llvm::ConstantInt::get(llvm::Type::getInt32Ty(llvm::getGlobalContext()), 0));
+			llvm::AllocaInst *print_str = Builder->CreateAlloca(llvm::ArrayType::get(llvm::Type::getInt8Ty(llvm::getGlobalContext()), 1));
+			memset_vec.push_back(Builder->CreatePointerCast(print_str, llvm::Type::getInt8PtrTy(llvm::getGlobalContext()), "print_str_temp"));
+			memset_vec.push_back(llvm::ConstantInt::get(llvm::Type::getInt8Ty(llvm::getGlobalContext()), 0));
+			memset_vec.push_back(llvm::ConstantInt::get(llvm::Type::getInt64Ty(llvm::getGlobalContext()), 1));
+			memset_vec.push_back(llvm::ConstantInt::get(llvm::Type::getInt32Ty(llvm::getGlobalContext()), 1));
+			memset_vec.push_back(llvm::ConstantInt::get(llvm::Type::getInt1Ty(llvm::getGlobalContext()), false));
+			Builder->CreateCall(Mod->getFunction("llvm.memset.p0i8.i64"), memset_vec, "call_temp");
+			if(llvm::isa<StringAST>(arg)){
+				print_vec.push_back(generateString("%s "));
+				print_vec.push_back(arg_v);
+				val = Builder->CreateCall(Mod->getFunction("printf"), print_vec, "call_temp");
+			}else if(llvm::isa<NewLineAST>(arg)){
+				print_vec.push_back(generateString("\n"));
+				val = Builder->CreateCall(Mod->getFunction("printf"), print_vec, "call_temp");
+			}else if(arg_v->getType()->isDoubleTy()){
 				std::string width;
 				std::string digit;
 				
@@ -884,26 +940,81 @@ llvm::Value *CodeGen::generateCallExpression(CallExprAST *call_expr, FunctionStm
 				}
 				
 				if(digit == "-1"){
-					Str += "%" + width + "d";
-					arg_v = Builder->CreateCast(llvm::Instruction::FPToSI, arg_v,
-						llvm::Type::getInt32Ty(llvm::getGlobalContext()), "int_tmp");
+					val = Builder->CreateInBoundsGEP(print_str,indices, "print_array");
+					print_vec.push_back(val);
+					print_vec.push_back(generateString("%%%s.0f "));
+					print_vec.push_back(generateString(width));
+					Builder->CreateCall(Mod->getFunction("sprintf"), print_vec, "call_temp");
+					print_vec.clear();
+					print_vec.push_back(Builder->CreateInBoundsGEP(print_str, indices, "print_array"));
+					print_vec.push_back(arg_v);
+					val = Builder->CreateCall(Mod->getFunction("printf"), print_vec, "call_temp");
 				}
-				else
-					Str += "%" + width + "." + digit + "f";
-				arg_vec.push_back(arg_v);	
+				else if(digit == "-2"){
+					llvm::Value *mod = Builder->CreateFRem(arg_v, generateNumber(1), "rem_temp");
+					llvm::Value *fcmp = Builder->CreateFCmpOEQ(mod, generateNumber(0), "cmp");
+					llvm::BasicBlock *integer = llvm::BasicBlock::Create(llvm::getGlobalContext(), "int_arg", CurFunc);
+					llvm::BasicBlock *decimal = llvm::BasicBlock::Create(llvm::getGlobalContext(), "dec_arg", CurFunc);
+					llvm::BasicBlock *end = llvm::BasicBlock::Create(llvm::getGlobalContext(), "end_arg", CurFunc);
+					Builder->CreateCondBr(fcmp, integer, decimal);
+					Builder->SetInsertPoint(integer);
+					
+					
+					// int だったら
+					val = Builder->CreateInBoundsGEP(print_str,indices, "print_array");
+					print_vec.push_back(val);
+					print_vec.push_back(generateString("%%%s.0f "));
+					print_vec.push_back(generateString(width));
+					Builder->CreateCall(Mod->getFunction("sprintf"), print_vec, "call_temp");
+					print_vec.clear();
+					print_vec.push_back(Builder->CreateInBoundsGEP(print_str, indices, "print_array"));
+					print_vec.push_back(arg_v);
+					Builder->CreateCall(Mod->getFunction("printf"), print_vec, "call_temp");					
+
+					Builder->CreateBr(end);
+					
+					// print_str.clear()
+					print_vec.clear();
+
+					Builder->SetInsertPoint(decimal);
+
+					// decだったら
+					val = Builder->CreateInBoundsGEP(print_str,indices, "print_array");
+					print_vec.push_back(val);
+					print_vec.push_back(generateString("%%.5f "));
+					Builder->CreateCall(Mod->getFunction("sprintf"), print_vec, "call_temp");
+					print_vec.clear();
+
+					print_vec.push_back(Builder->CreateInBoundsGEP(print_str, indices, "print_array"));
+					print_vec.push_back(arg_v);
+					val = Builder->CreateCall(Mod->getFunction("printf"), print_vec, "call_temp");
+					Builder->CreateBr(end);
+
+					Builder->SetInsertPoint(end);
+				}else{
+					val = Builder->CreateInBoundsGEP(print_str,indices, "print_array");
+					print_vec.push_back(val);
+					print_vec.push_back(generateString("%%%s.%sf "));
+					print_vec.push_back(generateString(width));
+					print_vec.push_back(generateString(digit));
+					Builder->CreateCall(Mod->getFunction("sprintf"), print_vec, "call_temp");
+					print_vec.clear();
+					print_vec.push_back(Builder->CreateInBoundsGEP(print_str, indices, "print_array"));
+					print_vec.push_back(arg_v);
+					val = Builder->CreateCall(Mod->getFunction("printf"), print_vec, "call_temp");
+				}
 			}
 		}
-		else
+		else {
 			arg_vec.push_back(arg_v);
-		
+		}
+
 	}
 	if(call_expr->getCallee() == "print"){
-		arg_vec.at(0) = generateString(Str);
-		return Builder->CreateCall(Mod->getFunction("printf"), arg_vec, "call_temp");
+		return val;
 	}
 	else
 		return Builder->CreateCall(Mod->getFunction(call_expr->getCallee()), arg_vec, "call_temp");
-	
 }
 
 /**
@@ -1055,7 +1166,7 @@ llvm::Value *CodeGen::generateComparison(BaseAST *lhs, BaseAST *rhs, std::string
 llvm::Value *CodeGen::generateForStatement(ForStatementAST *for_expr, llvm::BasicBlock *bcond, llvm::BasicBlock *bbody, FunctionStmtAST *func_stmt){
 	// 繰り返し変数の設定
 	if(!llvm::isa<BinaryExprAST>(for_expr->getBinExpr()) && for_expr->getBinExpr()->getOp() == "="){
-		fprintf(stderr, "繰り返し構文の初めは (変数 = 数字(変数) .. 数字(変数)) です。\n");
+		fprintf(stderr, "for 繰り返し数 である必要があります。\n");
 		SAFE_DELETE(bcond);
 		SAFE_DELETE(bbody);
 		return NULL;
@@ -1076,7 +1187,7 @@ llvm::Value *CodeGen::generateForStatement(ForStatementAST *for_expr, llvm::Basi
 	else if(llvm::isa<NumberAST>(for_expr->getEndExpr()))
 		end_val = generateNumber(llvm::dyn_cast<NumberAST>(for_expr->getEndExpr())->getNumberValue());
 	if(!end_val){
-		fprintf(stderr, "繰り返し構文の = の右辺値は 式..式である必要があります\n");
+		fprintf(stderr, "for 繰り返し数  である必要があります\n");
 		return NULL;
 	}
 	llvm::Value *fcmp = Builder->CreateFCmpOLE(roop_variable, end_val, "cmp");
@@ -1102,6 +1213,7 @@ llvm::BasicBlock *CodeGen::generateForEndStatement(llvm::BasicBlock *bcond, llvm
 		roop_var = vs_table.lookup(for_expr->getVal()->getName());
 	}
 	Builder->CreateStore(temp_var, roop_var);
+	
 	Builder->CreateBr(bcond);
 
 	// for.condの最後にbrを生成

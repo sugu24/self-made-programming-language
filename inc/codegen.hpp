@@ -31,7 +31,7 @@ class CodeGen{
 		llvm::Function *CurFunc;    // 現在コード生成中のFunction
 		llvm::Module *Mod;          // 生成したModuleを格納
 		llvm::IRBuilder<> *Builder; // LLVM-IRを生成するIRBuilder
-		
+		llvm::Value *PRINT_STRING;
 	public:
 		CodeGen();
 		~CodeGen();

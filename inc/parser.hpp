@@ -55,7 +55,7 @@ class Parser{
 		BaseAST *visitGlobalStatement(FunctionStmtAST *func_stmt);
 		BaseAST *visitIfStatement(FunctionStmtAST *func_stmt);
 		BaseAST *visitIfEndStatement();
-		ForStatementAST *visitForStatement(FunctionStmtAST *func_stmt);
+		ForStatementAST *visitForStatement(FunctionStmtAST *func_stmt, int id);
 		BaseAST *visitForEndStatement();
 		BaseAST *visitBreakStatement();
 		BaseAST *visitContinueStatement();

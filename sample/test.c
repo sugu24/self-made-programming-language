@@ -1,9 +1,10 @@
 #include <stdio.h>
+#include <string.h>
+
+char z[] = "aaaa";
 
 int main(){
-	double z = 0;
-	double a = 1/z;
-	printf("%f\n", a);
+	printf("%s\n", z);
 	return 0;
 }
 

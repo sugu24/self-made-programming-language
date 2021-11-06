@@ -84,6 +84,14 @@ TokenStream *LexicalAnalysis(std::string input_filename){
 					next_token = new Token("break", TOK_BREAK, line_num);
 				else if(token_str == "continue")
 					next_token = new Token("continue", TOK_CONTINUE, line_num);
+				else if(token_str == "if")
+					next_token = new Token("if", TOK_IF, line_num);
+				else if(token_str == "elif")
+					next_token = new Token("else if", TOK_ELSE_IF, line_num);
+				else if(token_str == "else")
+					next_token = new Token("else", TOK_ELSE, line_num);
+				else if(token_str == "for")
+					next_token = new Token("for", TOK_FOR, line_num);
 				else
 					next_token = new Token(token_str,TOK_IDENTIFIER,line_num);
 
@@ -166,13 +174,10 @@ TokenStream *LexicalAnalysis(std::string input_filename){
 				    next_char == '!' ||
 				    next_char == '=' ||
 				    next_char == '<' ||
-				    next_char == '.' ||
 				    next_char == '>' ||
 				    next_char == ',' || 
 				    next_char == '(' ||
 				    next_char == ')' ||
-				    next_char == '?' ||
-				    next_char == '^' ||
 				    next_char == '\\'||
 				    next_char == '[' ||
 				    next_char == ']' ||
@@ -192,12 +197,6 @@ TokenStream *LexicalAnalysis(std::string input_filename){
 							token_str += next_char;
 						else if(token_str == "!" && next_char == '=')
 							token_str += next_char;
-						else if(token_str == "." && next_char == '.')
-							token_str += next_char;
-						else if(token_str == "?" && next_char == '?')
-							token_str += next_char;
-						else if(token_str == "-" && next_char == '>')
-							token_str += next_char;
 						else if(token_str == "/" && next_char == '/')
 							token_str += next_char;
 						else if(token_str == "+" && next_char == '=')
@@ -209,8 +208,6 @@ TokenStream *LexicalAnalysis(std::string input_filename){
 						else if(token_str == "/" && next_char == '=')
 							token_str += next_char;
 						else if(token_str == "%" && next_char == '=')
-							token_str += next_char;
-						else if(token_str == "^" && next_char == '-')
 							token_str += next_char;
 						else
 							index--;
@@ -225,16 +222,7 @@ TokenStream *LexicalAnalysis(std::string input_filename){
 							}
 						}
 					}
-					if(token_str == "..")
-						next_token = new Token("for", TOK_FOR, line_num);
-					else if(token_str == "?")
-						next_token = new Token("if", TOK_IF, line_num);
-					else if(token_str == "??")
-						next_token = new Token("else if", TOK_ELSE_IF, line_num);
-					else if(token_str == "->")
-						next_token = new Token("else", TOK_ELSE, line_num);
-					else
-						next_token = new Token(token_str,TOK_SYMBOL,line_num);
+					next_token = new Token(token_str,TOK_SYMBOL,line_num);
 				// 解析不可能
 				}else{
 					fprintf(stderr, "%d行目 : 文字 ", line_num);
@@ -245,15 +233,7 @@ TokenStream *LexicalAnalysis(std::string input_filename){
 				}
 			}
 			// Tokensに追加
-			if(next_token->getTokenType() == TOK_FOR){
-				if(line_tokens.size() == 0)
-					line_tokens.push_back(next_token);
-				else
-					line_tokens.insert(line_tokens.begin(), next_token);
-				line_tokens.push_back(new Token("..", TOK_SYMBOL, line_num));
-			}
-			else
-				line_tokens.push_back(next_token);
+			line_tokens.push_back(next_token);
 			token_str.clear();
 			
 		}
@@ -354,8 +334,8 @@ TokenStream *LexicalAnalysis(std::string input_filename){
 		tokens->pushToken(mains.at(i));
 	tokens->pushToken(new Token("}}", TOK_SYMBOL, -1));
 	
-	//tokens->printTokens();
-	//return NULL;
+	// tokens->printTokens();
+	// return NULL;
 	
 	// EOFの確認
 	if (ifs.eof()){

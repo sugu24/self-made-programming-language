@@ -261,7 +261,7 @@ class BinaryExprAST : public BaseAST{
 		BinaryExprAST(std::string op, BaseAST *lhs, BaseAST *rhs, int line) 
 			: BaseAST(BinaryExprID),Op(op),LHS(lhs),RHS(rhs),Line(line){
 			Width = "";
-			Digit = "3";				
+			Digit = "-2";				
 		}
 		~BinaryExprAST(){SAFE_DELETE(LHS);SAFE_DELETE(RHS);}
 
@@ -310,7 +310,7 @@ class CallExprAST : public BaseAST{
 		CallExprAST(const std::string &callee, std::vector<BaseAST*> &args)
 			: BaseAST(CallExprID),Callee(callee),Args(args){
 			Width = "";
-			Digit = "3";
+			Digit = "-2";
 		}
 		~CallExprAST();
 
@@ -526,7 +526,7 @@ class VariableAST : public BaseAST{
 		VariableAST(const std::string &name) : 
 			BaseAST(VariableID),Name(name){
 			Width = "";
-			Digit = "3";
+			Digit = "-2";
 		}
 		~VariableAST(){}
 
@@ -565,7 +565,7 @@ class NumberAST : public BaseAST{
 	public:
 		NumberAST(double val) : BaseAST(NumberID), Val(val){
 			Width = "";
-			Digit = "3";
+			Digit = "-2";
 		}
 		~NumberAST(){}
 

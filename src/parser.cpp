@@ -331,7 +331,8 @@ FunctionStmtAST *Parser::visitFunctionStatement(PrototypeAST *proto){
 						Tokens->getNextToken();
 					}else{
 						CORRECT = false;
-						fprintf(stderr, "%d行目 : 条件式の後に { がありません.\n", popLine);
+						fprintf(stderr, "%d行目 : 条件式またはelseの後に { がありません.\n", popLine);
+						Tokens->getNextStatement();
 						stmt = NULL;
 					}
 				}
@@ -340,6 +341,7 @@ FunctionStmtAST *Parser::visitFunctionStatement(PrototypeAST *proto){
 					if(Tokens->getCurType() == TOK_EOF){
 						CORRECT = false;
 						fprintf(stderr, "%d行目 : 条件式の処理の最後に } がありません.\n", popLine);
+						Tokens->getNextStatement();
 					}
 					break;
 				}
@@ -348,6 +350,7 @@ FunctionStmtAST *Parser::visitFunctionStatement(PrototypeAST *proto){
 					if(Tokens->getCurType() == TOK_EOF){
 						CORRECT = false;
 						fprintf(stderr, "%d行目 : 繰り返し構文の処理の最後に } がありません.\n", popLine);
+						Tokens->getNextStatement();
 					}
 					break;
 				}
@@ -368,7 +371,7 @@ FunctionStmtAST *Parser::visitFunctionStatement(PrototypeAST *proto){
 				Tokens->getNextToken();
 			}else{
 				CORRECT = false;
-				fprintf(stderr, "%d行目 : ? 条件式 の後に { がありません.\n", line);
+				fprintf(stderr, "%d行目 : if 条件式 の後に { がありません.\n", line);
 				stmt = NULL;
 				Tokens->getNextStatement();
 			}
@@ -378,12 +381,12 @@ FunctionStmtAST *Parser::visitFunctionStatement(PrototypeAST *proto){
 			if(std::get<0>(lastStmt.at(lastStmt.size()-1)) == "if" || std::get<0>(lastStmt.at(lastStmt.size()-1)) == "else if")
 				fprintf(stderr, "%d行目 : 上の条件式が } で閉じられていません.\n", line);
 			else
-				fprintf(stderr, "%d行目 : 条件式 ?? の前に ? がありません.\n", line);
+				fprintf(stderr, "%d行目 : elif の前に ? がありません.\n", line);
 			
 			stmt = visitIfStatement(func_stmt);
 			
 			if(Tokens->getCurString() != "{")
-				fprintf(stderr, "%d行目 : ?? の処理を { の後に記述してください.\n", line);
+				fprintf(stderr, "%d行目 : elif の処理を { の後に記述してください.\n", line);
 			else
 				Tokens->getNextToken();
 		}
@@ -392,12 +395,12 @@ FunctionStmtAST *Parser::visitFunctionStatement(PrototypeAST *proto){
 			if(std::get<0>(lastStmt.at(lastStmt.size()-1)) == "if" || std::get<0>(lastStmt.at(lastStmt.size()-1)) == "else if")
 				fprintf(stderr, "%d行目 : 上の条件式が } で閉じられていません.\n", line);
 			else
-				fprintf(stderr, "%d行目 : 条件式 -> の前に ? がありません.\n", line);
+				fprintf(stderr, "%d行目 : else の前に ? がありません.\n", line);
 			
 			stmt = visitIfStatement(func_stmt);
 			
 			if(Tokens->getCurString() != "{")
-				fprintf(stderr, "%d行目 : -> の処理を { の後に記述してください.\n", line);
+				fprintf(stderr, "%d行目 : else の処理を { の後に記述してください.\n", line);
 			else
 				Tokens->getNextToken();
 		}
@@ -405,13 +408,13 @@ FunctionStmtAST *Parser::visitFunctionStatement(PrototypeAST *proto){
 			std::string catch_token = Tokens->getCurString();
 			int catch_line = Tokens->getCurLine();
 			lastStmt.emplace_back(catch_token, catch_line);
-			stmt = visitForStatement(func_stmt);
+			stmt = visitForStatement(func_stmt, lastStmt.size());
 			// {がくるか確認
 			if(Tokens->getCurType() == TOK_SYMBOL && Tokens->getCurString() == "{"){
 				Tokens->getNextToken();
 			}else{
 				CORRECT = false;
-				fprintf(stderr, "%d行目 : 変数 = 式..式 の後に { がありません.\n", line);
+				fprintf(stderr, "%d行目 : for 繰り返し数 の後に { がありません.\n", line);
 				Tokens->getNextStatement();
 			}
 		}else if(Tokens->getCurType() == TOK_BREAK){
@@ -1261,7 +1264,7 @@ BaseAST *Parser::visitIfEndStatement(){
  * ForStatement用解析メソッド
  * @return 解析成功:ForStatementAST 解析失敗:NULL
  */
-ForStatementAST *Parser::visitForStatement(FunctionStmtAST *func_stmt){
+ForStatementAST *Parser::visitForStatement(FunctionStmtAST *func_stmt, int id){
 	int bkup = Tokens->getCurIndex();
 		
 	// エラー検出のためforを表すTokenのつぎへ
@@ -1269,70 +1272,27 @@ ForStatementAST *Parser::visitForStatement(FunctionStmtAST *func_stmt){
 		Tokens->getNextToken();
 	// 変数名取得
 	std::string val_name;
-	BaseAST *start_expr = new NumberAST(0);
+	BaseAST *start_expr = new NumberAST(1);
 	BaseAST *end_expr = new NumberAST(0);
 	VariableAST *val;
 	BinaryExprAST *bin_expr;
-	if(Tokens->getCurType() == TOK_IDENTIFIER){
-		val_name = Tokens->getCurString();
-		Tokens->getNextToken();
-		
-		// 変数が宣言されていなかったら宣言する
-		if(std::find(VariableTable.begin(), VariableTable.end(),
-				       	val_name) == VariableTable.end()){
-			VariableDeclAST *var_decl = new VariableDeclAST(val_name, "double");
-		        var_decl->setDeclType(VariableDeclAST::local);
-			func_stmt->addVariableDeclaration(var_decl);
-			VariableTable.push_back(var_decl->getName());
-		}
-	}else{
-		CORRECT = false;
-		fprintf(stderr, "%d行目 : 繰り返し構文の = の左辺値は変数名でなければいけません\n", 
-				Tokens->getCurLine());
-		Tokens->getNextStatement();
-		return NULL;
-	}
-	val = new VariableAST(val_name);
-	// =を確認
-	if(Tokens->getCurType() == TOK_SYMBOL && Tokens->getCurString() == "=")
-		Tokens->getNextToken();
-	else{
-		CORRECT = false;
-		fprintf(stderr, "%d行目 : 繰り返し構文の変数の次は = でなければいけません\n",
-				                                Tokens->getCurLine());
-		Tokens->getNextStatement();
-		bin_expr = new BinaryExprAST("=", val, start_expr, Tokens->getCurLine());
-		return new ForStatementAST(val, bin_expr, end_expr);
-	}
 	
-	// 繰り返しの初めの値を取得
-	start_expr = visitAdditiveExpression(NULL, func_stmt);
-	if(!start_expr || llvm::isa<NullExprAST>(start_expr)){
-		CORRECT = false;
-		fprintf(stderr, "%d行目 : 繰り返し構文の = の右辺値は 式..式 でなければいけません\n",
-				                                Tokens->getCurLine());
-		bin_expr = new BinaryExprAST("=", val, new NumberAST(0), Tokens->getCurLine());
-		return new ForStatementAST(val, bin_expr, end_expr);
+	// 繰り返し回数のカウント
+	std::string count_id = "count__________count" + std::to_string(id);
+	if (std::find(VariableTable.begin(), VariableTable.end(), count_id) == VariableTable.end()){
+		VariableDeclAST *var_decl = new VariableDeclAST(count_id, "double");
+		var_decl->setDeclType(VariableDeclAST::local);
+		func_stmt->addVariableDeclaration(var_decl);
+		VariableTable.push_back(var_decl->getName());
 	}
-
-	// .. を確認
-	if(Tokens->getCurType() == TOK_SYMBOL && Tokens->getCurString() == "..")
-		Tokens->getNextToken();
-	else{
-		CORRECT = false;
-		fprintf(stderr, "%d行目 : 繰り返し構文の = の右辺値は 式..式 でなければいけません\n",
-				Tokens->getCurLine());
-		Tokens->getNextStatement();
-		bin_expr = new BinaryExprAST("=", val, start_expr, Tokens->getCurLine());
-		return new ForStatementAST(val, bin_expr, end_expr);
-	}
+	val = new VariableAST(count_id);
 
 	// 繰り返しの終わりの値を取得
 	end_expr = visitAdditiveExpression(NULL, func_stmt);
 	if(!end_expr || llvm::isa<NullExprAST>(end_expr)){
 		if(!end_expr){
 			CORRECT = false;
-			fprintf(stderr, "%d行目 : 繰り返し構文の = の右辺値は 式..式 でなければいけません\n", Tokens->getCurLine());
+			fprintf(stderr, "%d行目 : for 繰り返し回数 でなければいけません\n", Tokens->getCurLine());
 		}
 		bin_expr = new BinaryExprAST("=", val, start_expr, Tokens->getCurLine());
 		return new ForStatementAST(val, bin_expr, new NumberAST(0));
@@ -1390,7 +1350,7 @@ BaseAST *Parser::visitBreakStatement(){
 		Tokens->getNextToken();
 	else{
 		CORRECT = false;
-		fprintf(stderr, "%d行目 : break() の次は ; が来る必要があります.\n", line);
+		fprintf(stderr, "%d行目 : break() と異なります.\n", line);
 		Tokens->getNextStatement();
 		return NULL;
 	}
